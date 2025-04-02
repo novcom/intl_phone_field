@@ -319,14 +319,12 @@ class _IntlPhoneFieldState extends State<IntlPhoneField> {
     if (widget.initialCountryCode == null && number.startsWith('+')) {
       number = number.substring(1);
       // parse initial value
-      _selectedCountry = countries.firstWhere((country) => number.startsWith(country.fullCountryCode),
-          orElse: () => _countryList.first);
+      _selectedCountry = countries.firstWhere((country) => number.startsWith(country.fullCountryCode), orElse: () => _countryList.first);
 
       // remove country code from the initial number value
       number = number.replaceFirst(RegExp("^${_selectedCountry.fullCountryCode}"), "");
     } else {
-      _selectedCountry = _countryList.firstWhere((item) => item.code == (widget.initialCountryCode ?? 'US'),
-          orElse: () => _countryList.first);
+      _selectedCountry = _countryList.firstWhere((item) => item.code == (widget.initialCountryCode ?? 'US'), orElse: () => _countryList.first);
 
       // remove country code from the initial number value
       if (number.startsWith('+')) {
@@ -355,6 +353,15 @@ class _IntlPhoneFieldState extends State<IntlPhoneField> {
     }
   }
 
+  Country? _detectCountryFromInput(String input) {
+    for (final country in _countryList) {
+      if (input.startsWith('+${country.dialCode}')) {
+        return country;
+      }
+    }
+    return null;
+  }
+
   Future<void> _changeCountry() async {
     filteredCountries = _countryList;
     await showDialog(
@@ -368,9 +375,31 @@ class _IntlPhoneFieldState extends State<IntlPhoneField> {
           searchText: widget.searchText,
           countryList: _countryList,
           selectedCountry: _selectedCountry,
-          onCountryChanged: (Country country) {
+          onCountryChanged: (Country country) async {
             _selectedCountry = country;
             widget.onCountryChanged?.call(country);
+
+            // 🔁 Rebuild validator state
+            final phoneText = widget.controller?.text ?? number;
+            final phoneNumber = PhoneNumber(
+              countryISOCode: _selectedCountry.code,
+              countryCode: '+${_selectedCountry.fullCountryCode}',
+              number: phoneText,
+            );
+
+            if (widget.autovalidateMode != AutovalidateMode.disabled) {
+              final validationResult = await widget.validator?.call(phoneNumber);
+              setState(() {
+                validatorMessage = validationResult;
+              });
+            }
+
+            // 🔁 Trigger FormField revalidation (if formFieldKey was provided)
+            if (widget.formFieldKey?.currentState != null) {
+              widget.formFieldKey!.currentState!.validate();
+            }
+            widget.onChanged?.call(phoneNumber);
+
             setState(() {});
           },
         ),
@@ -414,6 +443,31 @@ class _IntlPhoneFieldState extends State<IntlPhoneField> {
         );
       },
       onChanged: (value) async {
+        // Try to detect country from prefix
+        if (value.startsWith('+')) {
+          final detectedCountry = _detectCountryFromInput(value);
+
+          if (detectedCountry != null) {
+            final dialCode = '+${detectedCountry.dialCode}';
+            String nationalNumber = value;
+
+            // Remove the matched dial code prefix from the beginning
+            if (value.startsWith(dialCode)) {
+              nationalNumber = value.substring(dialCode.length).trim();
+            }
+
+            setState(() {
+              _selectedCountry = detectedCountry;
+              widget.onCountryChanged?.call(detectedCountry);
+              value = nationalNumber;
+
+              // Set the cleaned-up number into the controller
+              widget.controller?.text = nationalNumber;
+              widget.controller?.selection = TextSelection.collapsed(offset: nationalNumber.length);
+            });
+          }
+        }
+
         final phoneNumber = PhoneNumber(
           countryISOCode: _selectedCountry.code,
           countryCode: '+${_selectedCountry.fullCountryCode}',
@@ -429,9 +483,7 @@ class _IntlPhoneFieldState extends State<IntlPhoneField> {
       validator: (value) {
         if (value == null || !isNumeric(value)) return validatorMessage;
         if (!widget.disableLengthCheck) {
-          return value.length >= _selectedCountry.minLength && value.length <= _selectedCountry.maxLength
-              ? null
-              : widget.invalidNumberMessage;
+          return value.length >= _selectedCountry.minLength && value.length <= _selectedCountry.maxLength ? null : widget.invalidNumberMessage;
         }
 
         return validatorMessage;
@@ -464,9 +516,7 @@ class _IntlPhoneFieldState extends State<IntlPhoneField> {
                 const SizedBox(
                   width: 4,
                 ),
-                if (widget.enabled &&
-                    widget.showDropdownIcon &&
-                    widget.dropdownIconPosition == IconPosition.leading) ...[
+                if (widget.enabled && widget.showDropdownIcon && widget.dropdownIconPosition == IconPosition.leading) ...[
                   widget.dropdownIcon,
                   const SizedBox(width: 4),
                 ],
@@ -489,9 +539,7 @@ class _IntlPhoneFieldState extends State<IntlPhoneField> {
                     style: widget.dropdownTextStyle,
                   ),
                 ),
-                if (widget.enabled &&
-                    widget.showDropdownIcon &&
-                    widget.dropdownIconPosition == IconPosition.trailing) ...[
+                if (widget.enabled && widget.showDropdownIcon && widget.dropdownIconPosition == IconPosition.trailing) ...[
                   const SizedBox(width: 4),
                   widget.dropdownIcon,
                 ],
