@@ -67,14 +67,17 @@ class CountryPickerDialog extends StatefulWidget {
 class _CountryPickerDialogState extends State<CountryPickerDialog> {
   late List<Country> _filteredCountries;
   late Country _selectedCountry;
+  late List<Country> _pinnedCountries;
 
   @override
   void initState() {
     _selectedCountry = widget.selectedCountry;
-    _filteredCountries = widget.filteredCountries.toList()
-      ..sort(
-        (a, b) => a.localizedName(widget.languageCode).compareTo(b.localizedName(widget.languageCode)),
-      );
+
+    _pinnedCountries = widget.filteredCountries.take(4).toList();
+
+    final rest = widget.filteredCountries.skip(4).toList()..sort((a, b) => a.localizedName(widget.languageCode).compareTo(b.localizedName(widget.languageCode)));
+
+    _filteredCountries = [..._pinnedCountries, ...rest];
 
     super.initState();
   }
@@ -103,10 +106,17 @@ class _CountryPickerDialogState extends State<CountryPickerDialog> {
                       labelText: widget.searchText,
                     ),
                 onChanged: (value) {
-                  _filteredCountries = widget.countryList.stringSearch(value)
-                    ..sort(
-                      (a, b) => a.localizedName(widget.languageCode).compareTo(b.localizedName(widget.languageCode)),
-                    );
+                  final searchResult = widget.countryList.stringSearch(value);
+
+                  // Extract matches excluding pinned
+                  final unpinnedResults = searchResult.where((c) => !_pinnedCountries.contains(c)).toList()
+                    ..sort((a, b) => a.localizedName(widget.languageCode).compareTo(b.localizedName(widget.languageCode)));
+
+                  // Add pinned countries if they match the search
+                  final matchingPinned =
+                      _pinnedCountries.where((c) => c.localizedName(widget.languageCode).toLowerCase().contains(value.toLowerCase()) || c.dialCode.contains(value)).toList();
+
+                  _filteredCountries = [...matchingPinned, ...unpinnedResults];
                   if (mounted) setState(() {});
                 },
               ),
