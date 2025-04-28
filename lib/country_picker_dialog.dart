@@ -73,9 +73,9 @@ class _CountryPickerDialogState extends State<CountryPickerDialog> {
   void initState() {
     _selectedCountry = widget.selectedCountry;
 
-    _pinnedCountries = widget.filteredCountries.take(4).toList();
+    _pinnedCountries = widget.filteredCountries.take(6).toList();
 
-    final rest = widget.filteredCountries.skip(4).toList()..sort((a, b) => a.localizedName(widget.languageCode).compareTo(b.localizedName(widget.languageCode)));
+    final rest = widget.filteredCountries.skip(6).toList()..sort((a, b) => a.localizedName(widget.languageCode).compareTo(b.localizedName(widget.languageCode)));
 
     _filteredCountries = [..._pinnedCountries, ...rest];
 
@@ -126,42 +126,95 @@ class _CountryPickerDialogState extends State<CountryPickerDialog> {
               child: ListView.builder(
                 shrinkWrap: true,
                 itemCount: _filteredCountries.length,
-                itemBuilder: (ctx, index) => Column(
-                  children: <Widget>[
-                    ListTile(
-                      leading: kIsWeb
-                          ? Image.asset(
-                              'assets/flags/${_filteredCountries[index].code.toLowerCase()}.png',
-                              package: 'intl_phone_field',
-                              width: 32,
-                            )
-                          : Text(
-                              _filteredCountries[index].flag,
-                              style: const TextStyle(fontSize: 18),
+                itemBuilder: (ctx, index) {
+                  final country = _filteredCountries[index];
+
+                  final isSeparatorIndex = index == _pinnedCountries.length &&
+                      _filteredCountries.length > _pinnedCountries.length &&
+                      _filteredCountries.sublist(0, _pinnedCountries.length).every((c) => _pinnedCountries.contains(c));
+                  final isLastPinnedBeforeSeparator = index == _pinnedCountries.length - 1 &&
+                      _filteredCountries.length > _pinnedCountries.length &&
+                      _filteredCountries.sublist(0, _pinnedCountries.length).every((c) => _pinnedCountries.contains(c));
+
+                  return Column(
+                    children: <Widget>[
+                      if (isSeparatorIndex)
+                        Padding(
+                          padding: const EdgeInsets.symmetric(vertical: 12),
+                          child: Container(
+                            color: Colors.grey.shade200,
+                            padding: const EdgeInsets.symmetric(vertical: 8, horizontal: 16),
+                            child: Row(
+                              children: [
+                                Expanded(child: Divider(thickness: 2)),
+                                Padding(
+                                  padding: EdgeInsets.symmetric(horizontal: 12),
+                                  child: Text(
+                                    getLocalizedOtherCountriesLabel(widget.languageCode),
+                                    style: TextStyle(
+                                      fontWeight: FontWeight.bold,
+                                      fontSize: 13,
+                                      color: Colors.black54,
+                                      letterSpacing: 1.0,
+                                    ),
+                                  ),
+                                ),
+                                Expanded(child: Divider(thickness: 2)),
+                              ],
                             ),
-                      contentPadding: widget.style?.listTilePadding,
-                      title: Text(
-                        _filteredCountries[index].localizedName(widget.languageCode),
-                        style: widget.style?.countryNameStyle ?? const TextStyle(fontWeight: FontWeight.w700),
+                          ),
+                        ),
+                      ListTile(
+                        leading: kIsWeb
+                            ? Image.asset(
+                                'assets/flags/${country.code.toLowerCase()}.png',
+                                package: 'intl_phone_field',
+                                width: 32,
+                              )
+                            : Text(
+                                country.flag,
+                                style: const TextStyle(fontSize: 18),
+                              ),
+                        contentPadding: widget.style?.listTilePadding,
+                        title: Text(
+                          country.localizedName(widget.languageCode),
+                          style: widget.style?.countryNameStyle ?? const TextStyle(fontWeight: FontWeight.w700),
+                        ),
+                        trailing: Text(
+                          '+${country.dialCode}',
+                          style: widget.style?.countryCodeStyle ?? const TextStyle(fontWeight: FontWeight.w700),
+                        ),
+                        onTap: () {
+                          _selectedCountry = country;
+                          widget.onCountryChanged(_selectedCountry);
+                          Navigator.of(context).pop();
+                        },
                       ),
-                      trailing: Text(
-                        '+${_filteredCountries[index].dialCode}',
-                        style: widget.style?.countryCodeStyle ?? const TextStyle(fontWeight: FontWeight.w700),
-                      ),
-                      onTap: () {
-                        _selectedCountry = _filteredCountries[index];
-                        widget.onCountryChanged(_selectedCountry);
-                        Navigator.of(context).pop();
-                      },
-                    ),
-                    widget.style?.listTileDivider ?? const Divider(thickness: 1),
-                  ],
-                ),
+                      isLastPinnedBeforeSeparator ? Container() : widget.style?.listTileDivider ?? const Divider(thickness: 1),
+                    ],
+                  );
+                },
               ),
             ),
           ],
         ),
       ),
     );
+  }
+
+  String getLocalizedOtherCountriesLabel(String langCode) {
+    switch (langCode.toLowerCase()) {
+      case 'it': // Italy
+        return 'Altri paesi';
+      case 'ro': // Romania
+        return 'Alte țări';
+      case 'de': // Germany, Austria, Switzerland, Liechtenstein
+        return 'Weitere Länder';
+      case 'fr': // France, French-speaking Switzerland/Lux.
+        return 'Autres pays';
+      case 'en': // English
+      default:
+        return 'Other countries';
+    }
   }
 }
